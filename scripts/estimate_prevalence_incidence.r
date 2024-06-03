@@ -21,7 +21,7 @@ if (length(args) == 1) {
     base_folder = '/home/filippo/Documents/moroni/podologia',
     data_folder = "data",
     vet_data = 'extracted_visite.RData',
-    year = 2023,
+    year = 2019,
     target_date = "09-01", ## format mm-dd
     interval = 10, ##n. of days around target date
     force_overwrite = FALSE
@@ -292,6 +292,10 @@ print("##----------------------")
 writeLines(" - calculating the denominator for incidence")
 ## calculate the denominator in the same way, based on the number of days each cow 
 ## stayed in the herd (the variable `id_bovina` is included here -- compared to the code above)
+
+initial_date = paste(config$year, "01", "01", sep="-")
+final_date = paste(config$year, "12", "31", sep="-")
+
 df0 <- res %>%
   select(data_effettuata,data_riforma,data_ingresso,stato_epid,stato_epid_rev,esito,matricola,bovina,parity,calving_date) |>
   unnest(bovina) |>
@@ -299,9 +303,9 @@ df0 <- res %>%
   mutate(data_riforma = as.numeric(data_riforma),
          data_ingresso = as.numeric(data_ingresso),
          data_parto = ifelse(parity == 1, calving_date, data_ingresso), ## PER CALCOLARE IL TEMPO A RISCHIO DALLA DATA DI PARTO SE PRIMIPARA
-         start = max(data_ingresso, data_parto, as.POSIXct(as.Date("2020-01-01"), format="%a %b %d %H:%M:%S %Y")),
-         end = ifelse(is.na(data_riforma), as.POSIXct(as.Date("2020-12-31"), format="%a %b %d %H:%M:%S %Y"), 
-                      min(data_riforma, as.POSIXct(as.Date("2020-12-31"), format="%a %b %d %H:%M:%S %Y"))
+         start = max(data_ingresso, data_parto, as.POSIXct(as.Date(initial_date), format="%a %b %d %H:%M:%S %Y")),
+         end = ifelse(is.na(data_riforma), as.POSIXct(as.Date(final_date), format="%a %b %d %H:%M:%S %Y"), 
+                      min(data_riforma, as.POSIXct(as.Date(final_date), format="%a %b %d %H:%M:%S %Y"))
          ),
          time_present_days = (end - start)/(24*60*60)
   ) |>
