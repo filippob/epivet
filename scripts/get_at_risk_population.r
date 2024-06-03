@@ -24,7 +24,7 @@ if (length(args) == 1) {
     cow_data = 'extracted_bovine.RData',
     vet_data = 'extracted_visite.RData',
     milk_data = 'extracted_status_bovine.RData',
-    year = 2020,
+    year = 2022,
     force_overwrite = FALSE
   ))
 }
