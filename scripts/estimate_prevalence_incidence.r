@@ -123,6 +123,8 @@ dtx = as.POSIXct(data, format="%a %b %d %H:%M:%S %Y")
 window = interval_days*24*60*60
 dtx <- as.numeric(dtx)
 
+results = data.frame("type"=NULL, "denominator_ncows"=NULL, "denominator_cow_years"=NULL, "numerator"=NULL,
+                 "estimate"=NULL)
 
 ## 4. denominator
 ## - calculate the time present in the herd as the difference, in number of days, 
@@ -166,6 +168,8 @@ print(denominator) ## tot is time in days
 
 print(paste("The calculated denominator is: i)", denominator$n_cows, "cows, or: ii)", denominator$`cow-years`, "cow-years"))
 
+rtemp <- data.frame("type" = "point_prevalence", "denominator_ncows" = denominator$n_cows, "denominator_cow_years" = denominator$`cow-years`)
+
 ## 5. calculate the numerator
 ## subset records around the chose date
 ## then take the column `esito` to count the cases (this variable is either `Sana` or `Malata`)
@@ -175,6 +179,7 @@ numerator <- df0 |>
   summarise(cases = sum(esito != "Sana"))
 
 print(paste("The numerator is", numerator$cases))
+rtemp$numerator = numerator$cases
 
 ## 5. point prevalence
 ## ratio between n. of cases at the chosen data and number of cows at chosen date
@@ -182,8 +187,9 @@ print(paste("The numerator is", numerator$cases))
 ## denominator is denominator$n_cows present in the considered interval
 
 point_prevalence = round((numerator$cases/denominator$n_cows),3)
-
 print(paste("Point prevalence is", point_prevalence))
+
+rtemp$estimate = point_prevalence
 
 ## 6. confidence interval
 ncas <- numerator$cases
@@ -193,6 +199,8 @@ tmp <- as.matrix(cbind(ncas, npop))
 print("95% confidence interval")
 print(epi.conf(tmp, ctype = "prevalence", method = "exact", design = 1, 
          conf.level = 0.95))
+
+results = rbind.data.frame(results, rtemp)
 
 ####################
 ## 1-YEAR PREVALENCE
@@ -234,6 +242,8 @@ print(denominator)
 
 print(paste("The calculated denominator is: i)", denominator$n_cows, "cows, or: ii)", denominator$`cow-years`, "cow-years"))
 
+rtemp <- data.frame("type" = "one_year_prevalence", "denominator_ncows" = denominator$n_cows, "denominator_cow_years" = denominator$`cow-years`)
+
 ## 2. calculate the numerator:
 writeLines(" - calculate the numerator")
 
@@ -242,6 +252,7 @@ numerator <- df0 |>
   summarise(cases = sum(esito != "Sana"))
 
 print(paste("The numerator is", numerator$cases))
+rtemp$numerator = numerator$cases
 
 ## 3. calculate 1-year prevalence
 ## ratio between n. of cases and number of cow-years in the selected year
@@ -262,4 +273,89 @@ epi.conf(tmp, ctype = "prevalence", method = "exact", design = 1,
 print(epi.conf(tmp, ctype = "prevalence", method = "exact", design = 1, 
                conf.level = 0.95))
 
+rtemp$estimate = year_prevalence
+results = rbind.data.frame(results, rtemp)
 
+########################
+########################
+## !! INCIDENCE !!
+########################
+########################
+
+####################
+## AVERAGE INCIDENCE
+####################
+print("##----------------------")
+print("estimating: AVERAGE INCIDENCE")
+print("##----------------------")
+
+writeLines(" - calculating the denominator for incidence")
+## calculate the denominator in the same way, based on the number of days each cow 
+## stayed in the herd (the variable `id_bovina` is included here -- compared to the code above)
+df0 <- res %>%
+  select(data_effettuata,data_riforma,data_ingresso,stato_epid,stato_epid_rev,esito,matricola,bovina,parity,calving_date) |>
+  unnest(bovina) |>
+  group_by(matricola) |>
+  mutate(data_riforma = as.numeric(data_riforma),
+         data_ingresso = as.numeric(data_ingresso),
+         data_parto = ifelse(parity == 1, calving_date, data_ingresso), ## PER CALCOLARE IL TEMPO A RISCHIO DALLA DATA DI PARTO SE PRIMIPARA
+         start = max(data_ingresso, data_parto, as.POSIXct(as.Date("2020-01-01"), format="%a %b %d %H:%M:%S %Y")),
+         end = ifelse(is.na(data_riforma), as.POSIXct(as.Date("2020-12-31"), format="%a %b %d %H:%M:%S %Y"), 
+                      min(data_riforma, as.POSIXct(as.Date("2020-12-31"), format="%a %b %d %H:%M:%S %Y"))
+         ),
+         time_present_days = (end - start)/(24*60*60)
+  ) |>
+  arrange(matricola, data_effettuata)
+
+nrecords = nrow(df0)
+ncows = length(unique(df0$matricola))
+cow_years = df0 |>
+  group_by(matricola) |>
+  summarise(days = mean(time_present_days)) |>
+  summarise(cow_years = sum(days)/365) |>
+  pull(cow_years)
+
+
+print(paste("there are", nrecords, "records from", ncows, "cows which correspond 
+-since not all cows remain in the herd for the entire year- to", cow_years, "cow-years (person-years). 
+            This is the denominator."))
+
+rtemp <- data.frame("type" = "avg_incidence_standard", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years)
+
+## 2. The numerator: standard classification (`stato_epid`)
+new_cases = sum(df0$stato_epid == "Nuovo caso di bovina malata", na.rm = TRUE)
+rtemp$numerator = new_cases
+
+## 3. Incidence = new_cases / cow_years
+incidence = round((new_cases/cow_years),3)
+print(paste("The incidence with the standard classification is", incidence))
+rtemp$estimate = incidence
+
+results = rbind.data.frame(results, rtemp)
+
+## 3. The numerator: revised classification (`stato_epid_rev`) (without relapses)
+new_cases = sum(df0$stato_epid_rev == "Nuovo caso reale di bovina malata", na.rm = TRUE)
+incidence = round((new_cases/cow_years),3)
+print(paste("The incidence with the revised classification is", incidence))
+
+rtemp <- data.frame("type" = "avg_incidence_revised", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years,
+                    "numerator" = new_cases, "estimate" = incidence)
+results = rbind.data.frame(results, rtemp)
+
+## 4. The numerator: revised classification (`stato_epid_rev`) (with relapses)
+new_cases = sum(df0$stato_epid_rev %in% c("Nuovo caso reale di bovina malata", "Bovina recidiva"), na.rm = TRUE)
+incidence = round((new_cases/cow_years),3)
+print(paste("The incidence with the revised classification (including relapses) is", incidence))
+
+rtemp <- data.frame("type" = "avg_incidence_relapses", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years,
+                    "numerator" = new_cases, "estimate" = incidence)
+results = rbind.data.frame(results, rtemp)
+
+fname = paste("prevalence_incidence_", config$year, ".csv", sep="")
+outdir = file.path(config$base_folder, "results")
+dir.create(outdir, showWarnings = FALSE)
+fname = file.path(outdir,fname)
+
+fwrite(x = results, file = fname)
+
+print("DONE!")
