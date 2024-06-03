@@ -21,7 +21,7 @@ if (length(args) == 1) {
     base_folder = '/home/filippo/Documents/moroni/podologia',
     data_folder = "data",
     vet_data = 'extracted_visite.RData',
-    year = 2019,
+    year = 2024,
     target_date = "09-01", ## format mm-dd
     interval = 10, ##n. of days around target date
     force_overwrite = FALSE
@@ -124,7 +124,7 @@ window = interval_days*24*60*60
 dtx <- as.numeric(dtx)
 
 results = data.frame("type"=NULL, "denominator_ncows"=NULL, "denominator_cow_years"=NULL, "numerator"=NULL,
-                 "estimate"=NULL)
+                 "estimate"=NULL, "year"=NULL)
 
 ## 4. denominator
 ## - calculate the time present in the herd as the difference, in number of days, 
@@ -168,7 +168,9 @@ print(denominator) ## tot is time in days
 
 print(paste("The calculated denominator is: i)", denominator$n_cows, "cows, or: ii)", denominator$`cow-years`, "cow-years"))
 
-rtemp <- data.frame("type" = "point_prevalence", "denominator_ncows" = denominator$n_cows, "denominator_cow_years" = denominator$`cow-years`)
+rtemp <- data.frame("type" = "point_prevalence", "denominator_ncows" = denominator$n_cows, 
+                    "denominator_cow_years" = denominator$`cow-years`,
+                    "year" = config$year)
 
 ## 5. calculate the numerator
 ## subset records around the chose date
@@ -242,7 +244,8 @@ print(denominator)
 
 print(paste("The calculated denominator is: i)", denominator$n_cows, "cows, or: ii)", denominator$`cow-years`, "cow-years"))
 
-rtemp <- data.frame("type" = "one_year_prevalence", "denominator_ncows" = denominator$n_cows, "denominator_cow_years" = denominator$`cow-years`)
+rtemp <- data.frame("type" = "one_year_prevalence", "denominator_ncows" = denominator$n_cows, 
+                    "denominator_cow_years" = denominator$`cow-years`, "year" = config$year)
 
 ## 2. calculate the numerator:
 writeLines(" - calculate the numerator")
@@ -324,7 +327,8 @@ print(paste("there are", nrecords, "records from", ncows, "cows which correspond
 -since not all cows remain in the herd for the entire year- to", cow_years, "cow-years (person-years). 
             This is the denominator."))
 
-rtemp <- data.frame("type" = "avg_incidence_standard", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years)
+rtemp <- data.frame("type" = "avg_incidence_standard", "denominator_ncows" = ncows, 
+                    "denominator_cow_years" = cow_years, "year" = config$year)
 
 ## 2. The numerator: standard classification (`stato_epid`)
 new_cases = sum(df0$stato_epid == "Nuovo caso di bovina malata", na.rm = TRUE)
@@ -343,7 +347,7 @@ incidence = round((new_cases/cow_years),3)
 print(paste("The incidence with the revised classification is", incidence))
 
 rtemp <- data.frame("type" = "avg_incidence_revised", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years,
-                    "numerator" = new_cases, "estimate" = incidence)
+                    "numerator" = new_cases, "estimate" = incidence, "year" = config$year)
 results = rbind.data.frame(results, rtemp)
 
 ## 4. The numerator: revised classification (`stato_epid_rev`) (with relapses)
@@ -352,7 +356,7 @@ incidence = round((new_cases/cow_years),3)
 print(paste("The incidence with the revised classification (including relapses) is", incidence))
 
 rtemp <- data.frame("type" = "avg_incidence_relapses", "denominator_ncows" = ncows, "denominator_cow_years" = cow_years,
-                    "numerator" = new_cases, "estimate" = incidence)
+                    "numerator" = new_cases, "estimate" = incidence, "year" = config$year)
 results = rbind.data.frame(results, rtemp)
 
 fname = paste("prevalence_incidence_", config$year, ".csv", sep="")
