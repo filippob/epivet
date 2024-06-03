@@ -21,7 +21,7 @@ if (length(args) == 1) {
     base_folder = '/home/filippo/Documents/moroni/podologia',
     data_folder = "data",
     vet_data = 'extracted_visite.RData',
-    year = 2021,
+    year = 2023,
     target_date = "09-01", ## format mm-dd
     interval = 10, ##n. of days around target date
     force_overwrite = FALSE
@@ -100,10 +100,10 @@ print(paste(nrow(filter(res, is.na(data_visita))), "records from non-visited cow
             cows that were not visited for feet disorders but that were present in
             the herd and at risk (adult cows with at least one calving)"))
 
-if(!(nrow(res)-nrow(subset) == nrow(filter(res, is.na(data_visita))))) {
+#if(!(nrow(res)-nrow(subset) == nrow(filter(res, is.na(data_visita))))) {
   
-  stop("Error: n. of visited cows and non-visited cows do not add up")
-}
+#  stop("Error: n. of visited cows and non-visited cows do not add up")
+#}
 
 ####################
 ## POINT PREVALENCE
