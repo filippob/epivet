@@ -1,6 +1,6 @@
 ## R script to estimate prevalence
 ## input: .RData objects with filtered cows (from get_at_risk_population.r) and visits
-# run as Rscript --vanilla estimate_prevalence.r <config_file>
+# run as Rscript --vanilla estimate_prevalence_incidence.r <config_file>
 
 ###################################
 ## read arguments from config file
