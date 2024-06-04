@@ -11,4 +11,8 @@ Topics covered include:
 
 ### operative guidelines
 
+0. `extract_from_json.r`: read source json file (from vet app) and save it to `.RData` objects for further analysis:
+    - `extracted_visite.RData` (vet visits)
+    - extracted_bovine.RData
+    - extracted_status_bovine.RData
 1. `get_at_risk_population.r`: script to subset the data based on the selected year of reference
