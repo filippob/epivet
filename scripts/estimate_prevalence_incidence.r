@@ -52,12 +52,12 @@ library("data.table")
 
 ## 1. LOAD DATA
 writeLines(" - loading data")
-## extracting vet visit data
+## loading vet visit data
 fname = file.path(config$base_folder, config$data_folder, config$vet_data)
 print(paste("load global visit data from", fname))
 load(fname)
 
-## extracting cow data
+## loading cow data
 print(paste("selected year is:", config$year))
 fname = paste("cow_filtered_", config$year, ".RData", sep="")
 fname = file.path(config$base_folder, config$data_folder, fname)
@@ -359,6 +359,83 @@ rtemp <- data.frame("type" = "avg_incidence_relapses", "denominator_ncows" = nco
                     "numerator" = new_cases, "estimate" = incidence, "year" = config$year)
 results = rbind.data.frame(results, rtemp)
 
+####################
+## MONTHLY INCIDENCE
+####################
+print("##----------------------")
+print("estimating: MONTHLY INCIDENCE")
+print("##----------------------")
+
+vec <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+names(vec) <- sprintf("%02d", 1:12)
+
+df0 <- res %>%
+  select(data_effettuata,data_riforma,data_ingresso,stato_epid,stato_epid_rev,esito,matricola,bovina,parity,calving_date,month_visit) |>
+  unnest(bovina) |>
+  filter(!is.na(month_visit)) |>
+  group_by(matricola, month_visit) |>
+  mutate(data_riforma = as.numeric(data_riforma),
+         data_ingresso = as.numeric(data_ingresso),
+         data_parto = ifelse(parity == 1, calving_date, data_ingresso), ## PER CALCOLARE IL TEMPO A RISCHIO DALLA DATA DI PARTO SE PRIMIPARA
+         start = max(data_ingresso, data_parto, as.POSIXct(as.Date(paste(config$year, month_visit, "01", sep="-")), 
+                                                           format="%a %b %d %H:%M:%S %Y")),
+         end = ifelse(is.na(data_riforma), as.POSIXct(as.Date(paste(config$year, month_visit, vec[month_visit], sep="-")), 
+                                                      format="%a %b %d %H:%M:%S %Y"), 
+                      min(data_riforma, as.POSIXct(as.Date(paste(config$year, month_visit, vec[month_visit], sep="-")), format="%a %b %d %H:%M:%S %Y"))
+         ),
+         time_present_days = (end - start)/(24*60*60)
+  ) |>
+  arrange(matricola, data_effettuata)
+
+nrecords = nrow(df0)
+ncows = df0 |>
+  group_by(month_visit) |>
+  summarise(ncows = length(unique(matricola)))
+cow_years = df0 |>
+  group_by(matricola, month_visit) |>
+  summarise(days = mean(time_present_days)) |>
+  group_by(month_visit) |>
+  summarise(cow_years = sum(days)/31) |>
+  select(cow_years,month_visit)
+
+
+new_cases = df0 |>
+  group_by(month_visit) |>
+  summarise(ncases = sum(stato_epid == "Nuovo caso di bovina malata", na.rm = TRUE)) |>
+  pull(ncases)
+
+incidence_standard = round((new_cases/cow_years$cow_years),3)
+
+rtemp <- data.frame("type" = "monthly_incidence_standard", "denominator_ncows" = ncows$ncows, "denominator_cow_years" = cow_years$cow_years,
+                    "numerator" = new_cases, "estimate" = incidence_standard, "year" = paste(config$year, cow_years$month_visit, sep="-"))
+results = rbind.data.frame(results, rtemp)
+
+#### incidence revised
+new_cases = df0 |>
+  group_by(month_visit) |>
+  summarise(ncases = sum(stato_epid_rev == "Nuovo caso reale di bovina malata", na.rm = TRUE)) |>
+  pull(ncases)
+
+incidence_revised = round((new_cases/cow_years$cow_years),3)
+
+rtemp <- data.frame("type" = "monthly_incidence_revised", "denominator_ncows" = ncows$ncows, "denominator_cow_years" = cow_years$cow_years,
+                    "numerator" = new_cases, "estimate" = incidence_revised, "year" = paste(config$year, cow_years$month_visit, sep="-"))
+results = rbind.data.frame(results, rtemp)
+
+
+#### incidence relapses
+new_cases = df0 |>
+  group_by(month_visit) |>
+  summarise(ncases = sum(stato_epid_rev %in% c("Nuovo caso reale di bovina malata", "Bovina recidiva"), na.rm = TRUE)) |>
+  pull(ncases)
+
+incidence_relapses = round((new_cases/cow_years$cow_years),3)
+
+rtemp <- data.frame("type" = "monthly_incidence_relapses", "denominator_ncows" = ncows$ncows, "denominator_cow_years" = cow_years$cow_years,
+                    "numerator" = new_cases, "estimate" = incidence_relapses, "year" = paste(config$year, cow_years$month_visit, sep="-"))
+results = rbind.data.frame(results, rtemp)
+
+##### WRITE OUT RESULTS ######
 fname = paste("prevalence_incidence_", config$year, ".csv", sep="")
 outdir = file.path(config$base_folder, "results")
 dir.create(outdir, showWarnings = FALSE)
